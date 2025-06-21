@@ -1,9 +1,9 @@
 name: Push Assessment Data to Google Drive
 
 on:
-  workflow_dispatch:  # allows manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'  # runs every hour (UTC)
+    - cron: '0 * * * *'
 
 jobs:
   run-script:
@@ -25,6 +25,6 @@ jobs:
 
     - name: Run script
       env:
-        GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+        GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
       run: |
         python scripts/assessment_data.py
