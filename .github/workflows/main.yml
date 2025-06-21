@@ -1,0 +1,30 @@
+name: Push Assessment Data to Google Drive
+
+on:
+  workflow_dispatch:  # allows manual trigger
+  schedule:
+    - cron: '0 * * * *'  # runs every hour (UTC)
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas requests pydrive
+
+    - name: Run script
+      env:
+        GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+      run: |
+        python scripts/assessment_data.py
