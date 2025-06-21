@@ -1,25 +1,25 @@
+import os
+import json
 import requests
 import pandas as pd
 import re
-import json
-import os
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 # -------------------------------
-# Google Drive Authentication
+# 1. AUTHENTICATE GOOGLE DRIVE
 # -------------------------------
-creds_path = "gdrive_creds.json"
-with open(creds_path, "w") as f:
-    f.write(os.environ["GDRIVE_CREDENTIALS"])  # GitHub Secret
+# Save service account JSON credentials from environment variable
+with open("service_account.json", "w") as f:
+    f.write(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])  # Must be set in GitHub Secrets
 
-gauth = GoogleAuth()
-gauth.LoadServiceConfigFile(creds_path)
-gauth.ServiceAuth()
-drive = GoogleDrive(gauth)
+# Load credentials
+creds = service_account.Credentials.from_service_account_file("service_account.json")
+drive_service = build("drive", "v3", credentials=creds)
 
 # -------------------------------
-# Brilliant Assessments API
+# 2. FETCH DATA FROM API
 # -------------------------------
 API_KEY = "11051A9A-3AA1-4E07-9BE0-F5BFBFDA9870"
 HEADERS = {
@@ -37,11 +37,8 @@ if response.status_code != 200:
 response_ids = response.json().get("ResponseIds", [])
 print(f"✅ Found {len(response_ids)} response IDs")
 
-# -------------------------------
-# Pull responses
-# -------------------------------
 records = []
-for rid in response_ids:  # Can limit with [:10] if needed
+for rid in response_ids[:]:  # Can remove [:] to fetch all
     detail_url = f"https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponse/{rid}"
     res = requests.get(detail_url, headers=HEADERS)
 
@@ -61,7 +58,6 @@ for rid in response_ids:  # Can limit with [:10] if needed
         "Organizational Performance Rating": data.get("Rating", {}).get("Score")
     }
 
-    # Flatten segmentation ratings
     for seg in data.get("SegmentationRatings", []):
         name = seg.get("SegmentationName")
         score = seg.get("Score")
@@ -71,17 +67,17 @@ for rid in response_ids:  # Can limit with [:10] if needed
     records.append(row)
 
 # -------------------------------
-# Convert to DataFrame & Upload
+# 3. SAVE AS CSV
 # -------------------------------
 df = pd.DataFrame(records)
 df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
+df.to_csv("assessment_data.csv", index=False)
+print("✅ Saved to assessment_data.csv")
 
-csv_path = "assessment_data.csv"
-df.to_csv(csv_path, index=False)
-print("✅ Saved to", csv_path)
-
-# Upload to Google Drive
-gfile = drive.CreateFile({'title': os.path.basename(csv_path)})
-gfile.SetContentFile(csv_path)
-gfile.Upload()
-print("✅ Uploaded to Google Drive")
+# -------------------------------
+# 4. UPLOAD TO GOOGLE DRIVE
+# -------------------------------
+file_metadata = {"name": "assessment_data.csv"}
+media = MediaFileUpload("assessment_data.csv", mimetype="text/csv")
+file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+print(f"✅ Uploaded to Google Drive with ID: {file.get('id')}")
