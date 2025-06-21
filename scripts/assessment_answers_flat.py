@@ -1,25 +1,23 @@
+import os
+import json
 import requests
 import pandas as pd
 import re
-import json
-import os
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 # -------------------------------
-# Google Drive Authentication
+# 1. AUTHENTICATE GOOGLE DRIVE
 # -------------------------------
-creds_path = "gdrive_creds.json"
-with open(creds_path, "w") as f:
-    f.write(os.environ["GDRIVE_CREDENTIALS"])  # GitHub Secret
+with open("service_account.json", "w") as f:
+    f.write(os.environ["GDRIVE_CREDENTIALS"])
 
-gauth = GoogleAuth()
-gauth.LoadServiceConfigFile(creds_path)
-gauth.ServiceAuth()
-drive = GoogleDrive(gauth)
+creds = service_account.Credentials.from_service_account_file("service_account.json")
+drive_service = build("drive", "v3", credentials=creds)
 
 # -------------------------------
-# Step 1: Get response IDs
+# 2. FETCH DATA FROM API
 # -------------------------------
 API_KEY = "11051A9A-3AA1-4E07-9BE0-F5BFBFDA9870"
 HEADERS = {
@@ -37,9 +35,6 @@ if response.status_code != 200:
 response_ids = response.json().get("ResponseIds", [])
 print(f"✅ Found {len(response_ids)} response IDs")
 
-# -------------------------------
-# Step 2: Pull responses
-# -------------------------------
 records = []
 for rid in response_ids:
     detail_url = f"https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponse/{rid}"
@@ -50,7 +45,6 @@ for rid in response_ids:
         continue
 
     data = res.json()
-
     row = {
         "ResponseId": rid,
         "Email": data.get("Email"),
@@ -64,25 +58,53 @@ for rid in response_ids:
     for ans in data.get("Answers", []):
         question = ans.get("QuestionText", "")
         answer = ans.get("AnswerText", "")
-        question = question.strip() if question else None
-        answer = answer.strip() if answer else None
         if question:
-            row[question] = answer
+            row[question.strip()] = answer.strip() if answer else ""
 
     records.append(row)
 
 # -------------------------------
-# Step 3: Save and Upload
+# 3. SAVE LOCALLY
 # -------------------------------
 df = pd.DataFrame(records)
 df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
+csv_filename = "assessment_answers_flat.csv"
+df.to_csv(csv_filename, index=False)
+print(f"✅ Saved to {csv_filename}")
 
-csv_path = "assessment_answers_flat.csv"
-df.to_csv(csv_path, index=False)
-print("✅ Saved to", csv_path)
+# -------------------------------
+# 4. UPLOAD TO GOOGLE DRIVE (OVERWRITE)
+# -------------------------------
+# Replace this with your actual folder ID
+FOLDER_ID = "1VPUTrOLi7OScnZFb1IBmHyfocOJH1X_I"
 
-# Upload to Google Drive
-gfile = drive.CreateFile({'title': os.path.basename(csv_path)})
-gfile.SetContentFile(csv_path)
-gfile.Upload()
-print("✅ Uploaded to Google Drive")
+# Search for existing file
+results = drive_service.files().list(
+    q=f"name='{csv_filename}' and '{FOLDER_ID}' in parents and trashed=false",
+    spaces="drive",
+    fields="files(id, name)"
+).execute()
+items = results.get("files", [])
+
+if items:
+    file_id = items[0]["id"]
+    print(f"♻️ File exists. Overwriting ID: {file_id}")
+    media = MediaFileUpload(csv_filename, mimetype="text/csv")
+    updated_file = drive_service.files().update(
+        fileId=file_id,
+        media_body=media
+    ).execute()
+    print(f"✅ File updated: {updated_file.get('id')}")
+else:
+    print("🆕 File not found. Creating new.")
+    file_metadata = {
+        "name": csv_filename,
+        "parents": [FOLDER_ID]
+    }
+    media = MediaFileUpload(csv_filename, mimetype="text/csv")
+    new_file = drive_service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id"
+    ).execute()
+    print(f"✅ File created: {new_file.get('id')}")
