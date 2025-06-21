@@ -12,7 +12,7 @@ from googleapiclient.http import MediaFileUpload
 # -------------------------------
 # Save service account JSON credentials from environment variable
 with open("service_account.json", "w") as f:
-    f.write(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])  # Must be set in GitHub Secrets
+    f.write(os.environ["GDRIVE_CREDENTIALS"])  # Must be set in GitHub Secrets
 
 # Load credentials
 creds = service_account.Credentials.from_service_account_file("service_account.json")
