@@ -1,0 +1,80 @@
+import requests
+import pandas as pd
+import re
+import json
+import os
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+# -------------------------------
+# Google Drive Authentication
+# -------------------------------
+creds_path = "gdrive_creds.json"
+with open(creds_path, "w") as f:
+    f.write(os.environ["GDRIVE_CREDENTIALS"])  # Add this as GitHub Secret
+
+gauth = GoogleAuth()
+gauth.LoadServiceConfigFile(creds_path)
+gauth.ServiceAuth()
+drive = GoogleDrive(gauth)
+
+# -------------------------------
+# Brilliant Assessments API
+# -------------------------------
+API_KEY = "11051A9A-3AA1-4E07-9BE0-F5BFBFDA9870"
+HEADERS = {
+    "APIKey": API_KEY,
+    "Content-Type": "application/json"
+}
+
+# Step 1: Get list of response IDs
+url = "https://api.brilliantassessments.com/api/assessmentresponse/getchanges"
+response = requests.get(url, headers=HEADERS)
+
+if response.status_code != 200:
+    print(f"❌ Failed to fetch response IDs: {response.status_code} {response.text}")
+    exit()
+
+response_ids = response.json().get("ResponseIds", [])
+print(f"✅ Found {len(response_ids)} response IDs")
+
+# Step 2: Pull data and flatten answers
+records = []
+for rid in response_ids:
+    detail_url = f"https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponse/{rid}"
+    res = requests.get(detail_url, headers=HEADERS)
+
+    if res.status_code != 200:
+        print(f"⚠️ Skipped {rid} — {res.status_code}")
+        continue
+
+    data = res.json()
+    row = {
+        "ResponseId": rid,
+        "Email": data.get("Email"),
+        "First Name": data.get("FirstName"),
+        "Last Name": data.get("LastName"),
+        "Completion Date": data.get("CompletionDate"),
+        "Business Name": data.get("BusinessName"),
+        "Status": data.get("Status")
+    }
+
+    for ans in data.get("Answers", []):
+        question = ans.get("QuestionText", "").strip()
+        answer = ans.get("AnswerText", "").strip()
+        if question:
+            row[question] = answer
+
+    records.append(row)
+
+# Step 3: Save to CSV
+df = pd.DataFrame(records)
+df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
+df.to_csv("assessment_answers_flat.csv", index=False)
+print("✅ Saved to assessment_answers_flat.csv")
+
+# Step 4: Upload to Google Drive
+gfile = drive.CreateFile({'title': "assessment_answers_flat.csv"})
+gfile.SetContentFile("assessment_answers_flat.csv")
+gfile.Upload()
+print("✅ Uploaded to Google Drive.")
