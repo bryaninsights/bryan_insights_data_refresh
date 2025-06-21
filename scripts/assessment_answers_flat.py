@@ -3,15 +3,15 @@ import pandas as pd
 import re
 import json
 import os
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 
 # -------------------------------
 # Google Drive Authentication
 # -------------------------------
 creds_path = "gdrive_creds.json"
 with open(creds_path, "w") as f:
-    f.write(os.environ["GDRIVE_CREDENTIALS"])  # Add this as GitHub Secret
+    f.write(os.environ["GDRIVE_CREDENTIALS"])  # GitHub Secret
 
 gauth = GoogleAuth()
 gauth.LoadServiceConfigFile(creds_path)
@@ -19,7 +19,7 @@ gauth.ServiceAuth()
 drive = GoogleDrive(gauth)
 
 # -------------------------------
-# Brilliant Assessments API
+# Step 1: Get response IDs
 # -------------------------------
 API_KEY = "11051A9A-3AA1-4E07-9BE0-F5BFBFDA9870"
 HEADERS = {
@@ -27,7 +27,6 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# Step 1: Get list of response IDs
 url = "https://api.brilliantassessments.com/api/assessmentresponse/getchanges"
 response = requests.get(url, headers=HEADERS)
 
@@ -38,7 +37,9 @@ if response.status_code != 200:
 response_ids = response.json().get("ResponseIds", [])
 print(f"✅ Found {len(response_ids)} response IDs")
 
-# Step 2: Pull data and flatten answers
+# -------------------------------
+# Step 2: Pull responses
+# -------------------------------
 records = []
 for rid in response_ids:
     detail_url = f"https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponse/{rid}"
@@ -49,6 +50,7 @@ for rid in response_ids:
         continue
 
     data = res.json()
+
     row = {
         "ResponseId": rid,
         "Email": data.get("Email"),
@@ -60,21 +62,27 @@ for rid in response_ids:
     }
 
     for ans in data.get("Answers", []):
-        question = ans.get("QuestionText", "").strip()
-        answer = ans.get("AnswerText", "").strip()
+        question = ans.get("QuestionText", "")
+        answer = ans.get("AnswerText", "")
+        question = question.strip() if question else None
+        answer = answer.strip() if answer else None
         if question:
             row[question] = answer
 
     records.append(row)
 
-# Step 3: Save to CSV
+# -------------------------------
+# Step 3: Save and Upload
+# -------------------------------
 df = pd.DataFrame(records)
 df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
-df.to_csv("assessment_answers_flat.csv", index=False)
-print("✅ Saved to assessment_answers_flat.csv")
 
-# Step 4: Upload to Google Drive
-gfile = drive.CreateFile({'title': "assessment_answers_flat.csv"})
-gfile.SetContentFile("assessment_answers_flat.csv")
+csv_path = "assessment_answers_flat.csv"
+df.to_csv(csv_path, index=False)
+print("✅ Saved to", csv_path)
+
+# Upload to Google Drive
+gfile = drive.CreateFile({'title': os.path.basename(csv_path)})
+gfile.SetContentFile(csv_path)
 gfile.Upload()
-print("✅ Uploaded to Google Drive.")
+print("✅ Uploaded to Google Drive")
