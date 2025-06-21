@@ -3,15 +3,15 @@ import pandas as pd
 import re
 import json
 import os
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 
 # -------------------------------
 # Google Drive Authentication
 # -------------------------------
 creds_path = "gdrive_creds.json"
 with open(creds_path, "w") as f:
-    f.write(os.environ["GDRIVE_CREDENTIALS"])  # Add this as a GitHub Secret
+    f.write(os.environ["GDRIVE_CREDENTIALS"])  # GitHub Secret
 
 gauth = GoogleAuth()
 gauth.LoadServiceConfigFile(creds_path)
@@ -31,19 +31,22 @@ url = "https://api.brilliantassessments.com/api/assessmentresponse/getchanges"
 response = requests.get(url, headers=HEADERS)
 
 if response.status_code != 200:
-    print(f" Failed to fetch response IDs: {response.status_code} {response.text}")
+    print(f"❌ Failed to fetch response IDs: {response.status_code} {response.text}")
     exit()
 
 response_ids = response.json().get("ResponseIds", [])
-print(f" Found {len(response_ids)} response IDs")
+print(f"✅ Found {len(response_ids)} response IDs")
 
+# -------------------------------
+# Pull responses
+# -------------------------------
 records = []
-for rid in response_ids[:]:  # Can remove [:] to fetch all
+for rid in response_ids:  # Can limit with [:10] if needed
     detail_url = f"https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponse/{rid}"
     res = requests.get(detail_url, headers=HEADERS)
 
     if res.status_code != 200:
-        print(f" Skipped {rid} — {res.status_code}")
+        print(f"⚠️ Skipped {rid} — {res.status_code}")
         continue
 
     data = res.json()
@@ -58,6 +61,7 @@ for rid in response_ids[:]:  # Can remove [:] to fetch all
         "Organizational Performance Rating": data.get("Rating", {}).get("Score")
     }
 
+    # Flatten segmentation ratings
     for seg in data.get("SegmentationRatings", []):
         name = seg.get("SegmentationName")
         score = seg.get("Score")
@@ -67,18 +71,17 @@ for rid in response_ids[:]:  # Can remove [:] to fetch all
     records.append(row)
 
 # -------------------------------
-# Convert to DataFrame
+# Convert to DataFrame & Upload
 # -------------------------------
 df = pd.DataFrame(records)
 df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
 
-print(df.head())
-df.to_csv("assessment_data.csv", index=False)
+csv_path = "assessment_data.csv"
+df.to_csv(csv_path, index=False)
+print("✅ Saved to", csv_path)
 
-# -------------------------------
 # Upload to Google Drive
-# -------------------------------
-gfile = drive.CreateFile({'title': "assessment_data.csv"})
-gfile.SetContentFile("assessment_data.csv")
+gfile = drive.CreateFile({'title': os.path.basename(csv_path)})
+gfile.SetContentFile(csv_path)
 gfile.Upload()
-print("✅ Uploaded to Google Drive.")
+print("✅ Uploaded to Google Drive")
