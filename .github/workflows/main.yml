@@ -28,3 +28,9 @@ jobs:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
       run: |
         python scripts/assessment_data.py
+        
+    - name: Run assessment_answers_flat.py
+      env:
+        GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+      run: |
+        python scripts/assessment_answers_flat.py
