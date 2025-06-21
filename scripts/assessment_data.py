@@ -10,11 +10,9 @@ from googleapiclient.http import MediaFileUpload
 # -------------------------------
 # 1. AUTHENTICATE GOOGLE DRIVE
 # -------------------------------
-# Save service account JSON credentials from environment variable
 with open("service_account.json", "w") as f:
-    f.write(os.environ["GDRIVE_CREDENTIALS"])  # Must be set in GitHub Secrets
+    f.write(os.environ["GDRIVE_CREDENTIALS"])
 
-# Load credentials
 creds = service_account.Credentials.from_service_account_file("service_account.json")
 drive_service = build("drive", "v3", credentials=creds)
 
@@ -38,7 +36,7 @@ response_ids = response.json().get("ResponseIds", [])
 print(f"✅ Found {len(response_ids)} response IDs")
 
 records = []
-for rid in response_ids[:]:  # Can remove [:] to fetch all
+for rid in response_ids:
     detail_url = f"https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponse/{rid}"
     res = requests.get(detail_url, headers=HEADERS)
 
@@ -75,9 +73,28 @@ df.to_csv("assessment_data.csv", index=False)
 print("✅ Saved to assessment_data.csv")
 
 # -------------------------------
-# 4. UPLOAD TO GOOGLE DRIVE
+# 4. UPLOAD OR OVERWRITE IN DRIVE
 # -------------------------------
-file_metadata = {"name": "assessment_data.csv"}
-media = MediaFileUpload("assessment_data.csv", mimetype="text/csv")
-file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-print(f"✅ Uploaded to Google Drive with ID: {file.get('id')}")
+FILE_NAME = "assessment_data.csv"
+FOLDER_ID = "1VPUTrOLi7OScnZFb1IBmHyfocOJH1X_I"
+
+# Search for existing file with the same name in the folder
+query = f"'{FOLDER_ID}' in parents and name='{FILE_NAME}' and trashed=false"
+response = drive_service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+files = response.get("files", [])
+
+media = MediaFileUpload(FILE_NAME, mimetype="text/csv")
+
+if files:
+    # File exists – overwrite it
+    file_id = files[0]["id"]
+    drive_service.files().update(fileId=file_id, media_body=media).execute()
+    print(f"♻️ Overwrote existing file with ID: {file_id}")
+else:
+    # File does not exist – create it
+    file_metadata = {
+        "name": FILE_NAME,
+        "parents": [FOLDER_ID]
+    }
+    file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    print(f"✅ Uploaded new file with ID: {file.get('id')}")
