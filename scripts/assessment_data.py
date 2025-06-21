@@ -14,7 +14,7 @@ with open(creds_path, "w") as f:
     f.write(os.environ["GDRIVE_CREDENTIALS"])  # GitHub Secret
 
 gauth = GoogleAuth()
-gauth.LoadClientConfigFile(creds_path) 
+gauth.LoadServiceConfigFile(creds_path)
 gauth.ServiceAuth()
 drive = GoogleDrive(gauth)
 
