@@ -19,7 +19,7 @@ drive_service = build("drive", "v3", credentials=creds)
 # -------------------------------
 # 2. FETCH DATA FROM API
 # -------------------------------
-API_KEY = "11051A9A-3AA1-4E07-9BE0-F5BFBFDA9870"
+API_KEY = os.environ["BRILLIANT_API_KEY"]
 HEADERS = {
     "APIKey": API_KEY,
     "Content-Type": "application/json"
