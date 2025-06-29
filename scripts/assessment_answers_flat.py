@@ -25,15 +25,15 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-url = "https://api.brilliantassessments.com/api/assessmentresponse/getchanges"
+url = "https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponses/CDI"
 response = requests.get(url, headers=HEADERS)
 
 if response.status_code != 200:
-    print(f"❌ Failed to fetch response IDs: {response.status_code} {response.text}")
+    print(f" Failed to fetch response IDs: {response.status_code} {response.text}")
     exit()
 
 response_ids = response.json().get("ResponseIds", [])
-print(f"✅ Found {len(response_ids)} response IDs")
+print(f" Found {len(response_ids)} response IDs")
 
 records = []
 for rid in response_ids:
@@ -41,7 +41,7 @@ for rid in response_ids:
     res = requests.get(detail_url, headers=HEADERS)
 
     if res.status_code != 200:
-        print(f"⚠️ Skipped {rid} — {res.status_code}")
+        print(f" Skipped {rid} — {res.status_code}")
         continue
 
     data = res.json()
@@ -70,7 +70,7 @@ df = pd.DataFrame(records)
 df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
 csv_filename = "assessment_answers_flat.csv"
 df.to_csv(csv_filename, index=False)
-print(f"✅ Saved to {csv_filename}")
+print(f" Saved to {csv_filename}")
 
 # -------------------------------
 # 4. UPLOAD TO GOOGLE DRIVE (OVERWRITE)
@@ -88,15 +88,15 @@ items = results.get("files", [])
 
 if items:
     file_id = items[0]["id"]
-    print(f"♻️ File exists. Overwriting ID: {file_id}")
+    print(f" File exists. Overwriting ID: {file_id}")
     media = MediaFileUpload(csv_filename, mimetype="text/csv")
     updated_file = drive_service.files().update(
         fileId=file_id,
         media_body=media
     ).execute()
-    print(f"✅ File updated: {updated_file.get('id')}")
+    print(f" File updated: {updated_file.get('id')}")
 else:
-    print("🆕 File not found. Creating new.")
+    print(" File not found. Creating new.")
     file_metadata = {
         "name": csv_filename,
         "parents": [FOLDER_ID]
@@ -107,4 +107,4 @@ else:
         media_body=media,
         fields="id"
     ).execute()
-    print(f"✅ File created: {new_file.get('id')}")
+    print(f" File created: {new_file.get('id')}")
