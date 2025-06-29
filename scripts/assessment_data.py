@@ -25,7 +25,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-url = "https://api.brilliantassessments.com/api/assessmentresponse/getchanges"
+url = "https://api.brilliantassessments.com/api/assessmentresponse/getassessmentresponses/CDI"
 response = requests.get(url, headers=HEADERS)
 
 if response.status_code != 200:
