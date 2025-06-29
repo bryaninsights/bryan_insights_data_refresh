@@ -29,11 +29,11 @@ url = "https://api.brilliantassessments.com/api/assessmentresponse/getassessment
 response = requests.get(url, headers=HEADERS)
 
 if response.status_code != 200:
-    print(f"❌ Failed to fetch response IDs: {response.status_code} {response.text}")
+    print(f" Failed to fetch response IDs: {response.status_code} {response.text}")
     exit()
 
 response_ids = response.json().get("ResponseIds", [])
-print(f"✅ Found {len(response_ids)} response IDs")
+print(f" Found {len(response_ids)} response IDs")
 
 records = []
 for rid in response_ids:
@@ -41,7 +41,7 @@ for rid in response_ids:
     res = requests.get(detail_url, headers=HEADERS)
 
     if res.status_code != 200:
-        print(f"⚠️ Skipped {rid} — {res.status_code}")
+        print(f" Skipped {rid} — {res.status_code}")
         continue
 
     data = res.json()
@@ -70,7 +70,7 @@ for rid in response_ids:
 df = pd.DataFrame(records)
 df.columns = [re.sub(r'[^\w\s\)\]]+$', '', col.strip()) for col in df.columns]
 df.to_csv("assessment_data.csv", index=False)
-print("✅ Saved to assessment_data.csv")
+print(" Saved to assessment_data.csv")
 
 # -------------------------------
 # 4. UPLOAD OR OVERWRITE IN DRIVE
@@ -89,7 +89,7 @@ if files:
     # File exists – overwrite it
     file_id = files[0]["id"]
     drive_service.files().update(fileId=file_id, media_body=media).execute()
-    print(f"♻️ Overwrote existing file with ID: {file_id}")
+    print(f" Overwrote existing file with ID: {file_id}")
 else:
     # File does not exist – create it
     file_metadata = {
@@ -97,4 +97,4 @@ else:
         "parents": [FOLDER_ID]
     }
     file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-    print(f"✅ Uploaded new file with ID: {file.get('id')}")
+    print(f" Uploaded new file with ID: {file.get('id')}")
