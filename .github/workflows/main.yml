@@ -26,11 +26,13 @@ jobs:
     - name: Run script
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+        BRILLIANT_API_KEY: ${{ secrets.BRILLIANT_API_KEY }}
       run: |
         python scripts/assessment_data.py
         
     - name: Run assessment_answers_flat.py
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+        BRILLIANT_API_KEY: ${{ secrets.BRILLIANT_API_KEY }}
       run: |
         python scripts/assessment_answers_flat.py
